@@ -4,9 +4,9 @@
 1. [Introduction](#introduction)
 2. [Architecture Overview](#architecture-overview)
 3. [Key Components](#key-components)
-4. [Adaptation Plan](#adaptation-plan)
+4. [Implementation Plan](#implementation-plan)
 5. [Implementation Details](#implementation-details)
-6. [Integration with GitHub Copilot](#integration-with-github-copilot)
+6. [VS Code MCP Client Integration](#vs-code-mcp-client-integration)
 7. [Security Considerations](#security-considerations)
 8. [Testing and Validation](#testing-and-validation)
 9. [Deployment](#deployment)
@@ -14,37 +14,57 @@
 
 ## Introduction
 
-This document outlines a detailed plan and architecture for building a Supabase Model Context Protocol (MCP) server specifically designed for GitHub Copilot. The implementation is based on the existing [supabase-mcp-server](https://github.com/Quegenx/supabase-mcp-server) project, which was originally developed for Cursor and Codeium's Cascade.
+This document outlines a detailed plan and architecture for building a Supabase Model Context Protocol (MCP) server specifically designed for GitHub Copilot through VS Code Insiders. The implementation is based on the existing [supabase-mcp-server](https://github.com/Quegenx/supabase-mcp-server) project, which was originally developed for Cursor and Codeium's Cascade.
 
-The Supabase MCP server for GitHub Copilot will allow developers to interact with their Supabase PostgreSQL databases directly through natural language prompts in the GitHub Copilot interface. This integration will enable seamless database management, query execution, and schema operations without leaving the coding environment.
+The Supabase MCP server will allow developers to interact with their Supabase PostgreSQL databases directly through natural language prompts in GitHub Copilot within VS Code Insiders. This integration will enable seamless database management, query execution, and schema operations without leaving the coding environment.
 
 ## Architecture Overview
 
-Based on a thorough analysis of the existing implementation, our Supabase MCP server for GitHub Copilot will follow a client-server architecture with these components:
+The architecture will follow the standard Model Context Protocol (MCP) approach similar to the existing implementation for Cursor, but adapted to work specifically with VS Code Insiders' MCP client capabilities. The architecture consists of:
 
-1. **MCP Server Core**: A Node.js/TypeScript application that implements the Model Context Protocol and connects to a Supabase PostgreSQL database.
+1. **Standalone MCP Server**: 
+   - Node.js/TypeScript application implementing the Model Context Protocol
+   - Stdio transport layer for communication with VS Code's MCP client
+   - PostgreSQL connection management for Supabase
+   - Tool registration and category organization
 
-2. **GitHub Copilot Integration Layer**: Custom components to adapt the MCP server for GitHub Copilot's specific communication protocols and interface requirements.
+2. **Database Tools Registry**:
+   - Comprehensive set of database operation tools organized by category
+   - Schema definition using Zod for input validation
+   - Response optimization for efficient communication
+   - Lazy loading mechanism for tool categories
 
-3. **PostgreSQL Connection Manager**: Handles secure connections to Supabase PostgreSQL databases with connection pooling and lifecycle management.
-
-4. **Categorized Tool Registry**: A comprehensive set of database operation tools organized by categories (table, index, constraint, etc.) with lazy loading capabilities.
-
-5. **Response Optimization Layer**: Components to optimize database responses for token efficiency in the GitHub Copilot context.
+3. **Integration with VS Code Insiders**:
+   - Configuration in VS Code's MCP client settings
+   - Communication through standard MCP protocol
+   - Integration with GitHub Copilot through VS Code's MCP capabilities
 
 ```
-┌───────────────────┐     ┌─────────────────────┐     ┌────────────────┐
-│                   │     │                     │     │                │
-│   GitHub Copilot  │◄────┤  Supabase MCP Server│◄────┤   Supabase    │
-│                   │     │                     │     │  PostgreSQL    │
-└───────────────────┘     └─────────────────────┘     └────────────────┘
-        │                         │                          │
-        │                         │                          │
-        ▼                         ▼                          ▼
-┌───────────────────┐     ┌─────────────────────┐     ┌────────────────┐
-│   Copilot         │     │   Categorized       │     │  Database      │
-│   Integration     │     │   Tool Registry     │     │  Operations    │
-└───────────────────┘     └─────────────────────┘     └────────────────┘
+┌─────────────────────────────────────┐
+│        VS Code Insiders             │
+│                                     │
+│  ┌───────────────┐ ┌─────────────┐  │
+│  │ GitHub Copilot │ │   MCP      │  │
+│  │               │ │   Client    │  │
+│  └───────┬───────┘ └─────┬───────┘  │
+│          │               │          │
+└──────────┼───────────────┼──────────┘
+           │               │
+           │               │ Stdio/MCP Protocol
+           │               ▼
+           │       ┌───────────────────┐
+           │       │                   │
+           └──────►│  Supabase MCP     │
+                   │  Server           │
+                   └────────┬──────────┘
+                            │
+                            │
+                   ┌────────┴──────────┐
+                   │                   │
+                   │     Supabase      │
+                   │    PostgreSQL     │
+                   │                   │
+                   └───────────────────┘
 ```
 
 ## Key Components
@@ -52,14 +72,13 @@ Based on a thorough analysis of the existing implementation, our Supabase MCP se
 ### 1. MCP Server Core
 
 - **Framework**: Node.js with TypeScript and MCP SDK v1.4.0+
-- **Protocol Implementation**: Model Context Protocol with GitHub Copilot-specific adaptations
-- **Connection Management**: Enhanced PostgreSQL connection pooling with error handling
-- **Resource Definition**: Customized resource templates for GitHub Copilot integration
-- **Tool Registration**: Categorical tool registration with optimized loading
+- **Transport Layer**: StdioServerTransport for communication with VS Code's MCP client
+- **Connection Management**: PostgreSQL connection pooling with error handling
+- **Server Lifecycle**: Proper initialization, connection, and cleanup processes
 
 ### 2. Database Tool Categories
 
-Based on the existing implementation, we'll maintain and enhance these tool categories:
+Based on the existing implementation, we'll maintain the comprehensive tool categories:
 
 - **Table Management**: Tools for creating, listing, modifying, and deleting tables and their records
 - **Index Management**: Create, list, and manage database indexes
@@ -75,282 +94,295 @@ Based on the existing implementation, we'll maintain and enhance these tool cate
 - **Advisor Management**: Performance and security recommendations
 - **Direct SQL Access**: Custom SQL query execution with parameter support
 
-### 3. GitHub Copilot Integration Components
+### 3. Tool Registration System
 
-- **Custom Transport Layer**: Replacing StdioServerTransport with a GitHub Copilot compatible transport
-- **Response Formatter**: Enhanced formatters optimized for GitHub Copilot's display capabilities
-- **Command Parser**: Specialized natural language parsing for database operations
-- **Context Management**: Session and context tracking for multi-step database operations
-- **Markdown Rendering**: Rich formatting to improve readability in Copilot responses
+Based on the existing implementation's optimized approach:
 
-### 4. Tool Registration System
+- **Category-based Organization**: Maintain the categorical organization for better discovery
+- **Lazy Loading Mechanism**: Load tool categories on demand to optimize performance
+- **Discovery Tools**: Tools to discover available categories and capabilities
+- **Response Optimization**: Optimized response formatting for token efficiency
+- **Error Handling**: Robust error handling with user-friendly messages
 
-Based on the existing implementation's optimized-tools.ts pattern:
+## Implementation Plan
 
-- **Category-based Organization**: Maintain the categorical organization with GitHub Copilot metadata
-- **Lazy Loading Mechanism**: Enhanced lazy loading with Copilot-specific optimizations
-- **Discovery Tools**: Improved category discovery tools with clear usage examples
-- **Essential Tools Preloading**: Core tools available immediately without category loading
-- **Response Optimization**: Token-efficient responses with progressive loading capabilities
+### Phase 1: Core Server Implementation
 
-## Adaptation Plan
+1. **Server Structure Setup**:
+   - Create the core MCP server structure following the existing implementation
+   - Configure the StdioServerTransport for integration with VS Code's MCP client
+   - Implement PostgreSQL connection management for Supabase
 
-### Phase 1: Core Transport Layer Adaptation
+2. **Tool Category Organization**:
+   - Organize database tools into well-defined categories
+   - Implement the lazy loading mechanism for tool categories
+   - Create discovery tools for category exploration
 
-1. **GitHub Copilot Transport Implementation**:
-   - Replace the existing StdioServerTransport with a new CopilotServerTransport class
-   - Implement message format adaptations for GitHub Copilot's protocol
-   - Add support for Copilot's authentication and session management
+3. **Response Optimization**:
+   - Implement response formatting optimized for GitHub Copilot's display
+   - Add token efficiency mechanisms for large result sets
+   - Enhance error handling with user-friendly messages
 
-2. **Connection Protocol Updates**:
-   - Modify the server.connect() flow to accommodate GitHub Copilot's connection patterns
-   - Implement bidirectional communication with appropriate error handling
-   - Add connection lifecycle hooks for Copilot integration
+### Phase 2: Database Tool Implementation
 
-3. **Resource Template Enhancements**:
-   - Enhance the "postgres://tables" resource with Copilot-specific metadata
-   - Add new resources like "postgres://schema" for database structure visualization
-   - Implement richer content type support for Copilot's interface
+1. **Core Database Tools**:
+   - Implement table management tools (create, list, modify, delete)
+   - Add record operation tools (query, insert, update, delete)
+   - Create schema management tools (columns, constraints, indexes)
 
-### Phase 2: Tool Adaptation and Enhancement
+2. **Advanced Database Features**:
+   - Implement function and trigger management
+   - Add policy and role management for security
+   - Create storage management tools for Supabase storage
 
-1. **Tool Registration Modifications**:
-   - Enhance the registerOptimizedTools function with Copilot-specific features
-   - Add metadata to each tool category for better discoverability in Copilot
-   - Implement progressive tool loading to optimize initial load time
+3. **Specialized Supabase Features**:
+   - Implement realtime management tools
+   - Add user management capabilities
+   - Create advisor tools for performance and security recommendations
 
-2. **Response Formatting Enhancements**:
-   - Extend the convertToMcpResponse function to support Copilot's rich display capabilities
-   - Implement markdown output formatting for better readability
-   - Add visualization hints for tabular data
+### Phase 3: Testing and Integration
 
-3. **Tool Handler Optimizations**:
-   - Adapt tool handlers to support Copilot's token limits and context windows
-   - Enhance error handling with user-friendly messages for Copilot users
-   - Add suggestion mechanisms for follow-up actions based on results
+1. **Unit Testing**:
+   - Test individual tool implementations
+   - Validate input schemas and parameter handling
+   - Verify response formatting
 
-### Phase 3: Copilot-Specific Features
+2. **Integration Testing**:
+   - Test communication with VS Code's MCP client
+   - Verify database operations execute correctly
+   - Validate error handling and recovery
 
-1. **Natural Language Command Processing**:
-   - Add intent detection for database operations from natural language prompts
-   - Implement parameter extraction from conversational inputs
-   - Support multi-step operations with context retention
-
-2. **User Experience Enhancements**:
-   - Create contextual examples for each tool based on user's database schema
-   - Implement "Did you mean?" suggestions for ambiguous commands
-   - Add annotated response formatting with explanations of results
-
-3. **Database Context Awareness**:
-   - Develop schema awareness to provide relevant suggestions
-   - Implement query history tracking for reference in follow-up operations
-   - Add code generation for application integration with database operations
+3. **Documentation and Deployment**:
+   - Create detailed installation and configuration documentation
+   - Provide example configurations for VS Code Insiders
+   - Prepare deployment package and instructions
 
 ## Implementation Details
 
 ### Server Configuration
 
-The server configuration will be adapted specifically for GitHub Copilot:
+The server implementation will maintain compatibility with the MCP protocol while ensuring it works correctly with VS Code's MCP client:
 
 ```typescript
-// Server configuration for GitHub Copilot
+// Server configuration
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import pkg from "pg";
+import * as dotenv from 'dotenv';
+import { registerOptimizedTools } from "./optimized-tools.js";
+
+dotenv.config();
+const { Pool } = pkg;
+
+// Prioritize command line argument over environment variable
+const connectionString = process.argv[2] || process.env.DATABASE_URL;
+
+if (!connectionString) {
+  console.error("No database connection string provided. Please provide it as a command line argument or set DATABASE_URL in .env file.");
+  process.exit(1);
+}
+
+// Create PostgreSQL pool with SSL required
+const pool = new Pool({
+  connectionString,
+  ssl: { rejectUnauthorized: false }
+});
+
+// Create an MCP server instance
 const server = new McpServer(
-  { name: "supabase-copilot-mcp", version: "1.0.0" },
+  { name: "supabase-mcp", version: "1.0.0" },
   {
     capabilities: {
       resources: {
         templates: [
           "postgres://tables",
-          "postgres://schema",
-          "postgres://queries",
-          // Additional Copilot-specific resources
+          "postgres://schema"
         ]
       },
-      tools: {},
-      // Copilot-specific capabilities
-      copilot: {
-        markdownSupport: true,
-        contextRetention: true,
-        richVisualization: true
-      }
+      tools: {}
     }
   }
 );
 
-// Initialize the Copilot-specific transport
-const transport = new CopilotServerTransport({
-  tokenHandling: "adaptive",
-  responseFormat: "markdown",
-  contextWindow: "extended"
+// Register database resources and tools
+server.resource(
+  "tables",
+  "postgres://tables",
+  async (uri) => {
+    // Implementation to list database tables
+    // ...
+  }
+);
+
+// Register all tool categories
+registerOptimizedTools(server, pool);
+
+// Start the server
+async function main() {
+  try {
+    // Test the database connection
+    const client = await pool.connect();
+    console.error("Successfully connected to PostgreSQL");
+    client.release();
+    
+    // Start the MCP server with stdio transport
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error("Supabase MCP Server running on stdio");
+    process.stdin.resume();
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    await cleanup();
+  }
+}
+
+// Server cleanup function
+async function cleanup() {
+  try {
+    await pool.end();
+    console.error("PostgreSQL connection pool closed");
+  } catch (error) {
+    console.error("Error closing PostgreSQL connection pool:", error);
+  }
+  process.exit(0);
+}
+
+// Handle process termination
+process.on("SIGINT", cleanup);
+process.on("SIGTERM", cleanup);
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught exception:", error);
+  cleanup();
 });
 
-// Connect with enhanced error handling for Copilot
-await server.connect(transport);
+main().catch((error) => {
+  console.error("Fatal error:", error);
+  cleanup();
+});
 ```
 
-### Tool Registration for GitHub Copilot
+### Tool Registration System
 
-The tool registration system will be enhanced with Copilot-specific features while maintaining the categorical approach:
+The tool registration system will leverage the existing categorized approach with optimizations:
 
 ```typescript
-export function registerCopilotTools(server: McpServer, pool: Pool): void {
-  // Enhanced category discovery for Copilot
+// Optimized tool registration
+export function registerOptimizedTools(server: McpServer, pool: Pool): void {
+  // Register the category discovery tool
   server.tool(
-    "discover_database_tools",
-    "Get available database tools organized by category",
+    "discover_tool_categories",
+    "Get a list of available tool categories to help narrow down which tools you need",
     {},
     async () => {
       const categories = Object.values(toolCategories);
       
-      // Enhanced Copilot-friendly response with examples
       return {
         content: [{
-          type: "markdown",
-          text: `
-## Available Database Tool Categories
-
-${categories.map(cat => `- **${cat}**: ${getCategoryDescription(cat)}`).join('\n')}
-
-### Example Usage
-
-You can load tools from a specific category:
-\`\`\`
-Load the table management tools
-\`\`\`
-
-Or ask about specific operations:
-\`\`\`
-Show me all tables in my database
-\`\`\`
-          `
+          type: "text",
+          text: JSON.stringify({
+            available_categories: categories,
+            message: "Use load_category_tools to load tools from a specific category"
+          }, null, 2)
         }]
       };
     }
   );
-  
-  // Enhanced category loader with progressive loading
+
+  // Register the category loader tool
   server.tool(
     "load_category_tools",
-    "Load tools from a specific database category",
+    "Load all tools from a specific category",
     {
-      category: z.string().describe("The category to load (e.g., table, index, policy)")
+      category: z.string().describe("The category of tools to load (e.g., table, storage, index)")
     },
     async ({ category }) => {
-      // Implementation with Copilot-specific enhancements
+      // Implementation to load tools from the specified category
       // ...
-
-      // Add example usage for loaded tools
-      return {
-        content: [{
-          type: "markdown",
-          text: `
-## ${category.toUpperCase()} Tools Loaded
-
-Tools are now available for ${category} operations.
-
-### Available Commands
-
-${getToolExamples(category)}
-          `
-        }]
-      };
     }
   );
-  
-  // Add other Copilot-specific tool registrations
-  // ...
+
+  // Register a small set of essential tools that are always available
+  registerEssentialTools(server, pool);
 }
 ```
 
-### Response Formatting for Copilot
+## VS Code MCP Client Integration
 
-Response formatting will be enhanced to take advantage of GitHub Copilot's interface capabilities:
+To integrate the Supabase MCP server with VS Code Insiders' MCP client and GitHub Copilot, you'll need to configure it in VS Code settings:
 
-```typescript
-// Enhanced response formatting for Copilot
-function formatCopilotResponse(result: ToolHandlerResult): CopilotResponse {
-  if (!result.content || result.content.length === 0) {
-    return { content: [] };
-  }
-  
-  // Process into Copilot-friendly format with rich formatting
-  const enhancedContent = result.content.map(item => {
-    // Convert JSON responses to formatted markdown tables
-    if (item.type === 'text' && isJsonString(item.text)) {
-      const data = JSON.parse(item.text);
-      
-      // Table data gets rendered as markdown tables
-      if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object') {
-        return {
-          type: 'markdown',
-          text: convertToMarkdownTable(data)
-        };
-      }
-      
-      // Add syntax highlighting for JSON responses
-      return {
-        type: 'markdown',
-        text: '```json\n' + JSON.stringify(data, null, 2) + '\n```'
-      };
-    }
-    
-    return item;
-  });
-  
-  // Add helpful context and suggestions based on the response
-  return {
-    content: enhancedContent,
-    suggestions: generateNextActionSuggestions(result)
-  };
-}
-```
+### Configuration Steps
 
-## Integration with GitHub Copilot
+1. **Install VS Code Insiders** with GitHub Copilot and MCP client capabilities.
 
-### User Command Flow
+2. **Build the Supabase MCP Server**:
+   ```bash
+   # Clone the repository
+   git clone https://github.com/YourUsername/supabase-mcp-server.git
+   cd supabase-mcp-server
+   
+   # Install dependencies
+   npm install
+   
+   # Build the project
+   npm run build
+   ```
 
-The integration with GitHub Copilot will support this interaction flow:
+3. **Configure in VS Code Insiders Settings**:
+   
+   Open VS Code Insiders settings (JSON) and add:
+   
+   ```json
+   {
+     "mcp.servers": [
+       {
+         "name": "Supabase MCP",
+         "type": "command",
+         "command": "/path/to/node",
+         "args": [
+           "/path/to/supabase-mcp-server/dist/index.js",
+           "postgresql://postgres.[PROJECT-ID]:[PASSWORD]@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
+         ]
+       }
+     ]
+   }
+   ```
 
-1. **User Command**: Developer issues a natural language request through GitHub Copilot.
+4. **Verify Configuration**:
+   - Open VS Code Insiders
+   - Access the MCP client settings
+   - Verify that "Supabase MCP" is listed as an available server
+   - Test with a simple command like "List tables in my Supabase database"
 
-2. **Command Parsing**: The server identifies database intent and extracts operation parameters.
+### Usage with GitHub Copilot
 
-3. **Tool Selection**: The appropriate database tool is selected based on the parsed intent.
+Once configured, GitHub Copilot in VS Code Insiders will be able to use the Supabase MCP server to execute database operations through natural language commands:
 
-4. **Parameter Validation**: Input is validated and sanitized before execution.
+1. **Activate GitHub Copilot** in VS Code Insiders.
 
-5. **Database Operation**: The tool executes the operation through the PostgreSQL connection.
+2. **Issue Database Commands** like:
+   - "Show me all tables in my Supabase database"
+   - "Create a users table with email, name, and created_at columns"
+   - "Add an index on the email column of the users table"
 
-6. **Response Formatting**: Results are formatted with rich markdown for Copilot display.
+3. **View Results** directly in the GitHub Copilot interface.
 
-7. **Suggested Next Steps**: Related operations are suggested based on the result context.
-
-### Natural Language Command Examples
-
-GitHub Copilot users will be able to use natural language commands like:
+### Command Examples
 
 ```
-- "Show me all tables in my Supabase database"
-- "Create a users table with email, name, and created_at columns"
-- "Add an index on the email column of the users table"
-- "Find all users who registered in the last month"
-- "Add a foreign key constraint between the orders and users tables"
-- "Generate a migration script to add a status column to the payments table"
-```
+# List all tables
+Show me all tables in my Supabase database
 
-### Contextual Follow-ups
+# Get table details
+Describe the users table structure
 
-The system will maintain context to support follow-up commands:
+# Create a new table
+Create a products table with id, name, price, and created_at columns
 
-```
-User: "Show me the users table structure"
-Copilot: [Displays table structure]
+# Query data
+Find all users who registered in the last month
 
-User: "Add a last_login timestamp column to it"
-Copilot: [Adds column to the previously referenced users table]
-
-User: "Now show me the first 5 rows"
-Copilot: [Queries and displays 5 rows from the users table]
+# Modify schema
+Add a last_login timestamp column to the users table
 ```
 
 ## Security Considerations
@@ -422,47 +454,65 @@ Copilot: [Queries and displays 5 rows from the users table]
 
 ## Deployment
 
-### Distribution Methods
+### Packaging for Distribution
+
+The Supabase MCP server can be packaged as:
 
 1. **NPM Package**:
-   - Global installation option with CLI
-   - Local project installation with configuration
-   - TypeScript definitions included
+   ```bash
+   # Create an npm package
+   npm pack
+   
+   # Install globally
+   npm install -g supabase-mcp-server-1.0.0.tgz
+   ```
 
-2. **Docker Container**:
-   - Pre-configured container with minimal setup
-   - Environment variable configuration support
-   - Volume mounting for persistent configuration
+2. **Standalone Binary** (using pkg):
+   ```bash
+   # Install pkg
+   npm install -g pkg
+   
+   # Package as standalone binary
+   pkg .
+   ```
 
-3. **GitHub Copilot Extension Integration**:
-   - Direct integration with Copilot extension system
-   - One-click setup option
-   - Automatic updates through extension management
+3. **Docker Container**:
+   ```dockerfile
+   FROM node:18-alpine
+   WORKDIR /app
+   COPY package*.json ./
+   RUN npm install
+   COPY dist/ ./dist/
+   CMD ["node", "dist/index.js"]
+   ```
 
-### Installation Process
+### Installation Instructions
 
 ```bash
-# Install the Supabase MCP server for GitHub Copilot
-npm install -g supabase-copilot-mcp
+# Install the Supabase MCP server
+npm install -g supabase-mcp-server
 
-# Configure with your Supabase connection
-supabase-copilot-mcp config --connection="postgresql://postgres.[PROJECT-ID]:[PASSWORD]@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
-
-# Start the server with Copilot integration
-supabase-copilot-mcp start --copilot
+# Run with your Supabase connection
+supabase-mcp-server postgresql://postgres.[PROJECT-ID]:[PASSWORD]@aws-0-eu-central-1.pooler.supabase.com:5432/postgres
 ```
 
-### Configuration Options
+### VS Code MCP Client Configuration
 
-```
---connection     Supabase PostgreSQL connection string
---copilot        Enable GitHub Copilot integration mode
---port           Port for the HTTP transport (if applicable)
---debug          Enable debug logging
---readonly       Enable read-only mode (prevents data modification)
---limit          Set result size limits
---timeout        Set query timeout in milliseconds
---format         Response format (json, markdown, or auto)
+In VS Code Insiders settings (JSON):
+
+```json
+{
+  "mcp.servers": [
+    {
+      "name": "Supabase MCP",
+      "type": "command",
+      "command": "supabase-mcp-server",
+      "args": [
+        "postgresql://postgres.[PROJECT-ID]:[PASSWORD]@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
+      ]
+    }
+  ]
+}
 ```
 
 ## Roadmap and Future Enhancements
@@ -493,6 +543,6 @@ supabase-copilot-mcp start --copilot
 
 ## Conclusion
 
-The Supabase MCP Server for GitHub Copilot will provide a powerful extension of database management capabilities directly within the development environment. By adapting the proven architecture of the existing Supabase MCP server implementation and enhancing it with GitHub Copilot-specific features, we will create a seamless, natural language interface to Supabase databases.
+This implementation plan provides a clear path to building a Supabase MCP server specifically designed to work with VS Code Insiders' MCP client capabilities and GitHub Copilot. By following the architecture and approach of the existing Supabase MCP server for Cursor while adapting it for VS Code's MCP client integration, we can create a powerful tool that allows developers to manage their Supabase databases through natural language interactions in GitHub Copilot.
 
-The implementation will maintain the modularity and category-based organization of the original design while adding rich formatting, context awareness, and optimized response handling for the GitHub Copilot environment. This approach ensures developers can interact with their Supabase databases efficiently without leaving their coding workflow.
+The implementation maintains the comprehensive set of database management tools while ensuring compatibility with VS Code's MCP client protocol, providing a seamless integration experience for developers using GitHub Copilot in VS Code Insiders.
