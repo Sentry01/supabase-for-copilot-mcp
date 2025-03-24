@@ -2,10 +2,9 @@
     "inputs": [
         {
             "description": "GitHub Personal Access Token",
-            "type": "secret",
+            "type": "promptString",
             "id": "GITHUB_PERSONAL_ACCESS_TOKEN",
-            "password": true,
-            "required": true
+            "password": true, 
         }
       ],
     "servers": {
